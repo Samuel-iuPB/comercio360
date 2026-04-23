@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Comercio360 — Reportes</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="index.html" class="topbar-brand">
+      <img src="logo.png" class="brand-logo" alt="C360">
+    </a>
+    <nav class="topbar-nav">
+      <a href="index.html" class="nav-link">🏪 Caja</a>
+      <a href="inventario.html" class="nav-link" id="inventarioLink" style="display:none">📦 Inventario</a>
+      <a href="dashboard.html" class="nav-link active">📊 Reportes</a>
+    </nav>
+    <div class="topbar-user">
+      <div class="user-dot"></div>
+      <span id="userName">…</span>
+      <span class="user-badge" id="userBadge"></span>
+      <button class="btn-logout" onclick="logout()">Salir</button>
+    </div>
+  </header>
+
+  <main class="page-main">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+      <h1 class="page-title">📊 Reportes</h1>
+      <span style="font-size:12px;color:var(--text-3)" id="lastUpdate">Cargando…</span>
+    </div>
+    <p class="page-sub">Resumen de ventas y rendimiento del negocio</p>
+
+    <!-- STATS CARDS -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Ventas hoy</div>
+        <div class="stat-value" id="todaySalesAmount">$0</div>
+        <div class="stat-delta" id="deltaVentas">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Transacciones</div>
+        <div class="stat-value" id="todayTransactions">0</div>
+        <div class="stat-delta">Ventas registradas hoy</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Ticket promedio</div>
+        <div class="stat-value" id="avgTicket">$0</div>
+        <div class="stat-delta">Por transacción</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Stock bajo</div>
+        <div class="stat-value" id="lowStockCount" style="color:var(--amber)">0</div>
+        <div class="stat-delta warn" id="lowStockDelta">Requieren atención</div>
+      </div>
+    </div>
+
+    <!-- CHART: TOP PRODUCTOS -->
+    <div class="chart-card">
+      <div class="chart-header">
+        <span class="chart-title">Productos más vendidos hoy</span>
+        <span class="chart-badge" id="chartBadge">Hoy</span>
+      </div>
+      <div id="barsContainer">
+        <p style="color:var(--text-3);font-size:13px;text-align:center;padding:20px">Sin ventas registradas aún hoy</p>
+      </div>
+    </div>
+
+    <!-- TABLA VENTAS -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <span style="font-size:13px;font-weight:600;color:var(--text-1)">Últimas ventas</span>
+      <span style="font-size:12px;color:var(--text-3)">Mostrando las 20 más recientes</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Venta #</th>
+            <th>Fecha / Hora</th>
+            <th>Productos</th>
+            <th>Total</th>
+            <th>Pago</th>
+            <th>Cambio</th>
+            <th>Cajero</th>
+          </tr>
+        </thead>
+        <tbody id="salesTable">
+          <tr><td colspan="7" style="text-align:center;color:var(--text-3);padding:24px">Cargando…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="common.js"></script>
+  <script>
+    (async () => {
+      await setupTopbar();
+      await loadDashboard();
+      // Auto-refresh cada 15 segundos
+      setInterval(loadDashboard, 15000);
+    })();
+
+    async function loadDashboard() {
+      try {
+        const [stats, ventas] = await Promise.all([
+          api('GET', '/stats'),
+          api('GET', '/ventas'),
+        ]);
+        renderStats(stats);
+        renderVentas(ventas);
+        document.getElementById('lastUpdate').textContent =
+          'Actualizado: ' + new Date().toLocaleTimeString('es-CO');
+      } catch(e) {
+        showToast('Error cargando datos', 'error');
+      }
+    }
+
+    function renderStats(s) {
+      document.getElementById('todaySalesAmount').textContent = fmt(s.amount);
+      document.getElementById('todayTransactions').textContent = s.transactions;
+      document.getElementById('avgTicket').textContent = fmt(s.avgTicket);
+      document.getElementById('lowStockCount').textContent = s.lowStock;
+      if (s.lowStock === 0) {
+        document.getElementById('lowStockCount').style.color = 'var(--green)';
+        document.getElementById('lowStockDelta').textContent = 'Stock saludable ✅';
+      }
+
+      const bars = document.getElementById('barsContainer');
+      if (!s.topProductos.length) {
+        bars.innerHTML = '<p style="color:var(--text-3);font-size:13px;text-align:center;padding:20px">Sin ventas registradas aún hoy</p>';
+        return;
+      }
+      const maxTotal = s.topProductos[0].total;
+      bars.innerHTML = s.topProductos.map(p => {
+        const pct = Math.round((p.total / maxTotal) * 100);
+        return `<div class="bar-row">
+          <span class="bar-name">${p.emoji} ${p.nombre.split(' ').slice(0,2).join(' ')}</span>
+          <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
+          <span class="bar-val">${fmt(p.total)}</span>
+        </div>`;
+      }).join('');
+    }
+
+    function renderVentas(ventas) {
+      const tbody = document.getElementById('salesTable');
+      if (!ventas.length) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-3);padding:24px">No hay ventas registradas</td></tr>';
+        return;
+      }
+      tbody.innerHTML = ventas.slice(0,20).map(v => {
+        const fecha = new Date(v.fecha);
+        const fechaStr = fecha.toLocaleDateString('es-CO') + ' ' + fecha.toLocaleTimeString('es-CO', {hour:'2-digit',minute:'2-digit'});
+        const items = v.items.map(i => `${i.emoji} ${i.nombre.split(' ')[0]} ×${i.qty}`).join(', ');
+        return `<tr>
+          <td class="mono" style="font-weight:600">#${String(v.id).padStart(4,'0')}</td>
+          <td style="color:var(--text-2);font-size:12px">${fechaStr}</td>
+          <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-2)">${items}</td>
+          <td class="mono" style="font-weight:700">${fmt(v.total)}</td>
+          <td class="mono">${fmt(v.pago)}</td>
+          <td class="mono" style="color:var(--green);font-weight:600">${fmt(v.cambio)}</td>
+          <td style="color:var(--text-2)">${v.cajero}</td>
+        </tr>`;
+      }).join('');
+    }
+  </script>
+</body>
+</html>

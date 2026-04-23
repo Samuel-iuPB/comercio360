@@ -1,0 +1,213 @@
+{
+  "productos": [
+    {
+      "id": 1,
+      "nombre": "Agua Cristal 600ml",
+      "precio": 1500,
+      "stock": 40,
+      "codigo": "7702113016507",
+      "emoji": "💧",
+      "proveedor": "Dist. El Sol",
+      "stockMin": 5
+    },
+    {
+      "id": 2,
+      "nombre": "Gaseosa Coca-Cola 400ml",
+      "precio": 2500,
+      "stock": 29,
+      "codigo": "7702149161604",
+      "emoji": "🥤",
+      "proveedor": "Dist. El Sol",
+      "stockMin": 5
+    },
+    {
+      "id": 3,
+      "nombre": "Pan tajado x500g",
+      "precio": 4200,
+      "stock": 0,
+      "codigo": "7701234567890",
+      "emoji": "🍞",
+      "proveedor": "Surtidora Valle",
+      "stockMin": 5
+    },
+    {
+      "id": 4,
+      "nombre": "Leche entera 1L",
+      "precio": 3800,
+      "stock": 0,
+      "codigo": "7709876543210",
+      "emoji": "🥛",
+      "proveedor": "Prov. Nacional",
+      "stockMin": 5
+    },
+    {
+      "id": 5,
+      "nombre": "Arroz premium 1kg",
+      "precio": 5500,
+      "stock": 22,
+      "codigo": "7706543219870",
+      "emoji": "🌾",
+      "proveedor": "Surtidora Valle",
+      "stockMin": 5
+    },
+    {
+      "id": 6,
+      "nombre": "Aceite girasol 1L",
+      "precio": 8900,
+      "stock": 0,
+      "codigo": "7701122334455",
+      "emoji": "🫙",
+      "proveedor": "Prov. Nacional",
+      "stockMin": 5
+    },
+    {
+      "id": 7,
+      "nombre": "Huevos x12",
+      "precio": 12000,
+      "stock": 0,
+      "codigo": "7700011223344",
+      "emoji": "🥚",
+      "proveedor": "Dist. El Sol",
+      "stockMin": 5
+    },
+    {
+      "id": 8,
+      "nombre": "Azúcar x1kg",
+      "precio": 3200,
+      "stock": 0,
+      "codigo": "7705544332211",
+      "emoji": "🧂",
+      "proveedor": "Surtidora Valle",
+      "stockMin": 3
+    },
+    {
+      "id": 9,
+      "nombre": "Papas fritas",
+      "precio": 2200,
+      "stock": 9,
+      "stockMin": 5,
+      "codigo": "770000001",
+      "emoji": "🥔",
+      "proveedor": "Valle"
+    }
+  ],
+  "ventas": [
+    {
+      "id": 1,
+      "fecha": "2026-04-23T12:06:47.585Z",
+      "items": [
+        {
+          "id": 1,
+          "nombre": "Agua Cristal 600ml",
+          "emoji": "💧",
+          "qty": 8,
+          "precio": 1500
+        },
+        {
+          "id": 2,
+          "nombre": "Gaseosa Coca-Cola 400ml",
+          "emoji": "🥤",
+          "qty": 7,
+          "precio": 2500
+        },
+        {
+          "id": 3,
+          "nombre": "Pan tajado x500g",
+          "emoji": "🍞",
+          "qty": 8,
+          "precio": 4200
+        },
+        {
+          "id": 4,
+          "nombre": "Leche entera 1L",
+          "emoji": "🥛",
+          "qty": 4,
+          "precio": 3800
+        },
+        {
+          "id": 5,
+          "nombre": "Arroz premium 1kg",
+          "emoji": "🌾",
+          "qty": 8,
+          "precio": 5500
+        },
+        {
+          "id": 6,
+          "nombre": "Aceite girasol 1L",
+          "emoji": "🫙",
+          "qty": 7,
+          "precio": 8900
+        },
+        {
+          "id": 7,
+          "nombre": "Huevos x12",
+          "emoji": "🥚",
+          "qty": 13,
+          "precio": 12000
+        },
+        {
+          "id": 8,
+          "nombre": "Azúcar x1kg",
+          "emoji": "🧂",
+          "qty": 3,
+          "precio": 3200
+        },
+        {
+          "id": 9,
+          "nombre": "Papas fritas",
+          "emoji": "🥔",
+          "qty": 11,
+          "precio": 2200
+        }
+      ],
+      "total": 374400,
+      "pago": 400000,
+      "cambio": 25600,
+      "cajero": "Cajero Principal",
+      "cajeroId": 2
+    },
+    {
+      "id": 2,
+      "fecha": "2026-04-23T12:07:25.361Z",
+      "items": [
+        {
+          "id": 3,
+          "nombre": "Pan tajado x500g",
+          "emoji": "🍞",
+          "qty": 4,
+          "precio": 4200
+        },
+        {
+          "id": 7,
+          "nombre": "Huevos x12",
+          "emoji": "🥚",
+          "qty": 5,
+          "precio": 12000
+        }
+      ],
+      "total": 76800,
+      "pago": 80000,
+      "cambio": 3200,
+      "cajero": "Cajero Principal",
+      "cajeroId": 2
+    }
+  ],
+  "usuarios": [
+    {
+      "id": 1,
+      "username": "admin",
+      "password": "b61847fc94761fb8cd36ae94a5ec7222e2ada613156f67faf7db90f3c17f8512",
+      "role": "admin",
+      "name": "Administrador"
+    },
+    {
+      "id": 2,
+      "username": "cajero",
+      "password": "992b47d167f2e183ade55a3aa7a02127887b548b70a3b114599d04863ef6dcf3",
+      "role": "cashier",
+      "name": "Cajero Principal"
+    }
+  ],
+  "nextProductId": 10,
+  "nextVentaId": 3
+}

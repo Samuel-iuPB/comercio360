@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Comercio360 — Inventario</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="index.html" class="topbar-brand">
+      <img src="logo.png" class="brand-logo" alt="C360">
+    </a>
+    <nav class="topbar-nav">
+      <a href="index.html" class="nav-link">🏪 Caja</a>
+      <a href="inventario.html" class="nav-link active" id="inventarioLink">📦 Inventario</a>
+      <a href="dashboard.html" class="nav-link">📊 Reportes</a>
+    </nav>
+    <div class="topbar-user">
+      <div class="user-dot"></div>
+      <span id="userName">…</span>
+      <span class="user-badge" id="userBadge"></span>
+      <button class="btn-logout" onclick="logout()">Salir</button>
+    </div>
+  </header>
+
+  <main class="page-main">
+    <h1 class="page-title">📦 Inventario</h1>
+    <p class="page-sub">Gestión de productos y stock. Solo visible para administradores.</p>
+
+    <div id="lowStockBanner" class="alert-banner warn" style="display:none">
+      ⚠️ Hay <strong id="lowCount">0</strong> productos con stock bajo o agotado — revisa antes de abrir caja.
+    </div>
+
+    <div class="inv-toolbar">
+      <div>
+        <input type="text" id="invSearch" placeholder="🔍 Buscar producto…"
+          style="padding:8px 12px;border:1.5px solid var(--border);border-radius:var(--radius-md);font-size:13px;font-family:'IBM Plex Sans',sans-serif;outline:none;background:var(--surface);width:260px"
+          oninput="filterInventory()">
+      </div>
+      <button class="btn-add" onclick="openModal()">＋ Agregar producto</button>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Producto</th>
+            <th>Código</th>
+            <th>Precio</th>
+            <th>Stock actual</th>
+            <th>Stock mínimo</th>
+            <th>Estado</th>
+            <th>Proveedor</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="inventoryTable">
+          <tr><td colspan="8" style="text-align:center;color:var(--text-3);padding:24px">Cargando…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <!-- MODAL AGREGAR / EDITAR -->
+  <div class="modal-overlay" id="productModal">
+    <div class="modal-card">
+      <div class="modal-title" id="modalTitle">Agregar producto</div>
+      <div class="modal-form">
+        <input type="hidden" id="editId">
+        <div class="modal-row">
+          <div class="form-group">
+            <label>Emoji</label>
+            <input class="field-input" id="fEmoji" placeholder="📦" maxlength="4">
+          </div>
+          <div class="form-group">
+            <label>Nombre</label>
+            <input class="field-input" id="fNombre" placeholder="Nombre del producto">
+          </div>
+        </div>
+        <div class="modal-row">
+          <div class="form-group">
+            <label>Precio ($)</label>
+            <input class="field-input" id="fPrecio" type="number" placeholder="0" min="0">
+          </div>
+          <div class="form-group">
+            <label>Código de barras</label>
+            <input class="field-input" id="fCodigo" placeholder="770…">
+          </div>
+        </div>
+        <div class="modal-row">
+          <div class="form-group">
+            <label>Stock inicial</label>
+            <input class="field-input" id="fStock" type="number" placeholder="0" min="0">
+          </div>
+          <div class="form-group">
+            <label>Stock mínimo</label>
+            <input class="field-input" id="fStockMin" type="number" placeholder="5" min="0">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Proveedor</label>
+          <input class="field-input" id="fProveedor" placeholder="Nombre del proveedor">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button class="btn-primary" onclick="saveProduct()">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="common.js"></script>
+  <script>
+    let productos = [];
+    let filterQuery = '';
+
+    (async () => {
+      const user = await setupTopbar();
+      if (user.role !== 'admin') {
+        alert('Solo administradores pueden acceder al inventario.');
+        window.location.href = '/index.html';
+        return;
+      }
+      await loadInventory();
+    })();
+
+    async function loadInventory() {
+      try {
+        productos = await api('GET', '/productos');
+        const low = productos.filter(p => p.stock <= p.stockMin).length;
+        if (low > 0) {
+          document.getElementById('lowCount').textContent = low;
+          document.getElementById('lowStockBanner').style.display = 'flex';
+        } else {
+          document.getElementById('lowStockBanner').style.display = 'none';
+        }
+        renderInventory();
+      } catch(e) {
+        showToast('Error cargando inventario', 'error');
+      }
+    }
+
+    function filterInventory() {
+      filterQuery = document.getElementById('invSearch').value.toLowerCase();
+      renderInventory();
+    }
+
+    function renderInventory() {
+      const tbody = document.getElementById('inventoryTable');
+      const filtered = productos.filter(p =>
+        p.nombre.toLowerCase().includes(filterQuery) ||
+        p.codigo.includes(filterQuery) ||
+        p.proveedor.toLowerCase().includes(filterQuery)
+      );
+      if (!filtered.length) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-3);padding:20px">Sin resultados</td></tr>';
+        return;
+      }
+      tbody.innerHTML = filtered.map(p => {
+        const out  = p.stock === 0;
+        const low  = p.stock > 0 && p.stock <= p.stockMin;
+        const badge = out ? '<span class="badge badge-out">🚫 Agotado</span>'
+                         : low ? '<span class="badge badge-low">⚠️ Bajo</span>'
+                               : '<span class="badge badge-ok">✅ Normal</span>';
+        const rowStyle = out ? 'background:var(--red-light)' : (low ? 'background:var(--amber-light)' : '');
+        return `<tr style="${rowStyle}">
+          <td><strong>${p.emoji}</strong> ${p.nombre}</td>
+          <td class="mono">${p.codigo}</td>
+          <td class="mono">${fmt(p.precio)}</td>
+          <td class="mono" style="font-weight:700;${out ? 'color:var(--red)' : (low ? 'color:var(--amber)' : '')}">${p.stock}</td>
+          <td class="mono">${p.stockMin}</td>
+          <td>${badge}</td>
+          <td style="color:var(--text-2)">${p.proveedor}</td>
+          <td>
+            <div class="inv-actions">
+              <button class="btn-sm minus" onclick="adjustStock(${p.id}, -1)" ${p.stock===0?'disabled':''}>−</button>
+              <button class="btn-sm plus"  onclick="adjustStock(${p.id},  1)">+</button>
+              <button class="btn-sm edit"  onclick="openEdit(${p.id})">Editar</button>
+              <button class="btn-sm del"   onclick="deleteProduct(${p.id})">Eliminar</button>
+            </div>
+          </td>
+        </tr>`;
+      }).join('');
+    }
+
+    async function adjustStock(id, delta) {
+      try {
+        const updated = await api('PATCH', `/productos/${id}/stock`, { delta });
+        const p = productos.find(x => x.id === id);
+        if (p) p.stock = updated.stock;
+        renderInventory();
+        showToast(`Stock actualizado: ${updated.stock} uds`, 'success');
+      } catch(e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    async function deleteProduct(id) {
+      const p = productos.find(x => x.id === id);
+      if (!confirm(`¿Eliminar "${p?.nombre}"? Esta acción no se puede deshacer.`)) return;
+      try {
+        await api('DELETE', `/productos/${id}`);
+        productos = productos.filter(x => x.id !== id);
+        renderInventory();
+        showToast('Producto eliminado', 'success');
+      } catch(e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    // ---- MODAL ----
+    function openModal() {
+      document.getElementById('modalTitle').textContent = 'Agregar producto';
+      document.getElementById('editId').value = '';
+      document.getElementById('fEmoji').value = '📦';
+      document.getElementById('fNombre').value = '';
+      document.getElementById('fPrecio').value = '';
+      document.getElementById('fCodigo').value = '';
+      document.getElementById('fStock').value = '';
+      document.getElementById('fStockMin').value = '5';
+      document.getElementById('fProveedor').value = '';
+      document.getElementById('productModal').classList.add('open');
+    }
+
+    function openEdit(id) {
+      const p = productos.find(x => x.id === id);
+      if (!p) return;
+      document.getElementById('modalTitle').textContent = 'Editar producto';
+      document.getElementById('editId').value = p.id;
+      document.getElementById('fEmoji').value = p.emoji;
+      document.getElementById('fNombre').value = p.nombre;
+      document.getElementById('fPrecio').value = p.precio;
+      document.getElementById('fCodigo').value = p.codigo;
+      document.getElementById('fStock').value = p.stock;
+      document.getElementById('fStockMin').value = p.stockMin;
+      document.getElementById('fProveedor').value = p.proveedor;
+      document.getElementById('productModal').classList.add('open');
+    }
+
+    function closeModal() {
+      document.getElementById('productModal').classList.remove('open');
+    }
+
+    async function saveProduct() {
+      const editId = document.getElementById('editId').value;
+      const data = {
+        emoji:     document.getElementById('fEmoji').value || '📦',
+        nombre:    document.getElementById('fNombre').value.trim(),
+        precio:    parseFloat(document.getElementById('fPrecio').value),
+        codigo:    document.getElementById('fCodigo').value.trim(),
+        stock:     parseInt(document.getElementById('fStock').value),
+        stockMin:  parseInt(document.getElementById('fStockMin').value) || 5,
+        proveedor: document.getElementById('fProveedor').value.trim() || 'Sin proveedor',
+      };
+      if (!data.nombre || isNaN(data.precio) || isNaN(data.stock)) {
+        showToast('Completa nombre, precio y stock', 'error'); return;
+      }
+      try {
+        if (editId) {
+          const updated = await api('PUT', `/productos/${editId}`, data);
+          const idx = productos.findIndex(p => p.id === parseInt(editId));
+          if (idx > -1) productos[idx] = updated;
+          showToast('Producto actualizado ✓', 'success');
+        } else {
+          const newProd = await api('POST', '/productos', data);
+          productos.push(newProd);
+          showToast('Producto agregado ✓', 'success');
+        }
+        closeModal();
+        renderInventory();
+      } catch(e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    // Cerrar modal al hacer clic fuera
+    document.getElementById('productModal').addEventListener('click', e => {
+      if (e.target === document.getElementById('productModal')) closeModal();
+    });
+  </script>
+</body>
+</html>

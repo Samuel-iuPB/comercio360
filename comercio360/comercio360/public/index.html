@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Comercio360 — Punto de Venta</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="index.html" class="topbar-brand">
+      <img src="logo.png" class="brand-logo" alt="C360">
+    </a>
+    <nav class="topbar-nav">
+      <a href="index.html" class="nav-link active">🏪 Caja</a>
+      <a href="inventario.html" class="nav-link" id="inventarioLink" style="display:none">📦 Inventario</a>
+      <a href="dashboard.html" class="nav-link">📊 Reportes</a>
+    </nav>
+    <div class="topbar-user">
+      <div class="user-dot"></div>
+      <span id="userName">…</span>
+      <span class="user-badge" id="userBadge"></span>
+      <button class="btn-logout" onclick="logout()">Salir</button>
+    </div>
+  </header>
+
+  <main class="pos-layout">
+
+    <!-- ── IZQUIERDA: Catálogo ── -->
+    <section class="products-panel">
+      <div class="panel-toolbar">
+        <div class="search-wrap">
+          <svg class="search-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
+            <circle cx="7" cy="7" r="5"/><line x1="11" y1="11" x2="14" y2="14"/>
+          </svg>
+          <input type="text" id="search" placeholder="Buscar por nombre o código de barras…" oninput="filterProducts()">
+        </div>
+        <div class="panel-stat">📦 <strong id="statProducts">—</strong> productos</div>
+        <div class="panel-stat" id="lowStockStat" style="display:none">⚠️ <strong id="statLow">0</strong> bajo stock</div>
+      </div>
+      <p class="section-label">Catálogo disponible</p>
+      <div class="products-grid" id="productGrid">
+        <div style="color:var(--text-3);font-size:13px;">Cargando productos…</div>
+      </div>
+    </section>
+
+    <!-- ── DERECHA: Carrito ── -->
+    <aside class="cart-panel">
+      <div class="cart-header">
+        <div>
+          <p class="cart-title">Venta en curso</p>
+          <p class="cart-sub" id="cart-count">0 productos</p>
+        </div>
+        <button class="btn-clear" onclick="clearCart()">Limpiar</button>
+      </div>
+
+      <div class="cart-items" id="cartItems">
+        <div class="cart-empty">
+          <div class="cart-empty-icon">🛒</div>
+          <p>Agrega productos desde el catálogo</p>
+        </div>
+      </div>
+
+      <div class="cart-footer">
+        <div class="totals">
+          <div class="total-row"><span>Subtotal</span><span id="subtotal">$0</span></div>
+          <div class="total-row main"><span>Total</span><span id="total">$0</span></div>
+        </div>
+
+        <label class="field-label">Pago recibido</label>
+        <input class="field-input" type="number" id="pagoInput" placeholder="$0" oninput="calcCambio()" min="0">
+
+        <div class="cambio-chip" id="cambioChip">
+          <span>Cambio a entregar</span>
+          <span class="cambio-val" id="cambioVal">$0</span>
+        </div>
+
+        <button class="btn-cobrar" id="btnCobrar" onclick="cobrar()" disabled>Registrar venta</button>
+      </div>
+    </aside>
+
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <!-- RECIBO MODAL -->
+  <div class="modal-overlay" id="reciboModal">
+    <div class="modal-card" style="max-width:420px">
+      <div class="modal-title">✅ Venta registrada</div>
+      <div id="reciboContent" style="font-size:13px;color:var(--text-2);line-height:1.8"></div>
+      <div class="modal-footer" style="margin-top:20px">
+        <button class="btn-primary" onclick="closeRecibo()">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="common.js"></script>
+  <script>
+    let productos = [];
+    let cart = {};
+    let query = '';
+    let currentUser = null;
+
+    // ---- INIT ----
+    (async () => {
+      currentUser = await setupTopbar();
+      await loadProductos();
+    })();
+
+    async function loadProductos() {
+      try {
+        productos = await api('GET', '/productos');
+        const low = productos.filter(p => p.stock <= p.stockMin).length;
+        document.getElementById('statProducts').textContent = productos.length;
+        if (low > 0) {
+          document.getElementById('lowStockStat').style.display = 'flex';
+          document.getElementById('statLow').textContent = low;
+        }
+        renderGrid();
+      } catch(e) {
+        showToast('Error cargando productos', 'error');
+      }
+    }
+
+    // Actualizar productos cada 30 segundos (cambios del admin en tiempo real)
+    setInterval(loadProductos, 30000);
+
+    // ---- FILTRO ----
+    function filterProducts() {
+      query = document.getElementById('search').value.toLowerCase();
+      renderGrid();
+    }
+
+    // ---- GRILLA ----
+    function renderGrid() {
+      const grid = document.getElementById('productGrid');
+      const filtered = productos.filter(p =>
+        p.nombre.toLowerCase().includes(query) || p.codigo.includes(query)
+      );
+      if (!filtered.length) {
+        grid.innerHTML = '<p class="no-results">Sin resultados.</p>'; return;
+      }
+      grid.innerHTML = filtered.map(p => {
+        const outStock = p.stock === 0;
+        const lowStock = p.stock > 0 && p.stock <= p.stockMin;
+        const stockClass = outStock ? 'stock-out' : (lowStock ? 'stock-low' : 'stock-ok');
+        const cardClass = outStock ? ' out-stock' : (lowStock ? ' low-stock' : '');
+        const stockLabel = outStock ? '🚫 Agotado' : `${p.stock} uds disponibles`;
+        return `
+          <div class="prod-card${cardClass}" onclick="${outStock ? '' : `addToCart(${p.id})`}" title="${p.codigo}">
+            <span class="prod-emoji">${p.emoji}</span>
+            <div class="prod-name">${p.nombre}</div>
+            <div class="prod-price">${fmt(p.precio)}</div>
+            <div class="prod-stock ${stockClass}">${stockLabel}</div>
+          </div>`;
+      }).join('');
+    }
+
+    // ---- CARRITO ----
+    function addToCart(id) {
+      const p = productos.find(x => x.id === id);
+      if (!p || p.stock === 0) return;
+      if (cart[id]) {
+        if (cart[id].qty >= p.stock) { showToast('Sin más stock disponible', 'error'); return; }
+        cart[id].qty++;
+      } else {
+        cart[id] = { prod: p, qty: 1 };
+      }
+      showToast(p.nombre.split(' ').slice(0,3).join(' ') + ' agregado ✓', 'success');
+      renderCart();
+    }
+
+    function changeQty(id, delta) {
+      if (!cart[id]) return;
+      cart[id].qty += delta;
+      if (cart[id].qty <= 0) delete cart[id];
+      else {
+        const p = productos.find(x => x.id === parseInt(id));
+        if (p && cart[id].qty > p.stock) { cart[id].qty = p.stock; showToast('Stock máximo alcanzado'); }
+      }
+      renderCart();
+    }
+
+    function removeItem(id) { delete cart[id]; renderCart(); }
+
+    function clearCart() {
+      if (!Object.keys(cart).length) return;
+      if (confirm('¿Limpiar todos los productos del carrito?')) {
+        cart = {};
+        document.getElementById('pagoInput').value = '';
+        renderCart();
+      }
+    }
+
+    function renderCart() {
+      const items = Object.values(cart);
+      document.getElementById('cart-count').textContent = items.length + (items.length === 1 ? ' producto' : ' productos');
+      const el = document.getElementById('cartItems');
+      if (!items.length) {
+        el.innerHTML = `<div class="cart-empty"><div class="cart-empty-icon">🛒</div><p>Agrega productos desde el catálogo</p></div>`;
+        updateTotals(0); return;
+      }
+      let total = 0;
+      el.innerHTML = items.map(({ prod, qty }) => {
+        const sub = prod.precio * qty; total += sub;
+        return `<div class="cart-item">
+          <span class="ci-emoji">${prod.emoji}</span>
+          <div class="ci-name">${prod.nombre}</div>
+          <div class="ci-qty">
+            <button class="qty-btn" onclick="changeQty(${prod.id},-1)">−</button>
+            <span class="qty-val">${qty}</span>
+            <button class="qty-btn" onclick="changeQty(${prod.id},1)">+</button>
+          </div>
+          <div class="ci-sub">${fmt(sub)}</div>
+          <button class="ci-del" onclick="removeItem(${prod.id})" title="Quitar">×</button>
+        </div>`;
+      }).join('');
+      updateTotals(total);
+    }
+
+    function updateTotals(total) {
+      document.getElementById('subtotal').textContent = fmt(total);
+      document.getElementById('total').textContent = fmt(total);
+      calcCambio();
+    }
+
+    function calcCambio() {
+      const total = Object.values(cart).reduce((s,{prod,qty}) => s + prod.precio*qty, 0);
+      const pago  = parseFloat(document.getElementById('pagoInput').value) || 0;
+      const cambio = pago - total;
+      document.getElementById('cambioVal').textContent = cambio >= 0 ? fmt(cambio) : '–';
+      const chip = document.getElementById('cambioChip');
+      chip.className = 'cambio-chip' + (cambio < 0 && pago > 0 ? ' negative' : '');
+      document.getElementById('btnCobrar').disabled = (total === 0 || pago < total);
+    }
+
+    async function cobrar() {
+      const items = Object.values(cart).map(({prod,qty}) => ({ id: prod.id, qty }));
+      const pago = parseFloat(document.getElementById('pagoInput').value) || 0;
+      const btn = document.getElementById('btnCobrar');
+      btn.disabled = true;
+      btn.textContent = 'Procesando…';
+      try {
+        const venta = await api('POST', '/ventas', { items, pago });
+        // Mostrar recibo
+        const itemsText = venta.items.map(i => `
+          <div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px dashed var(--border)">
+            <span>${i.emoji} ${i.nombre} ×${i.qty}</span>
+            <span style="font-family:'IBM Plex Mono',monospace">${fmt(i.precio * i.qty)}</span>
+          </div>`).join('');
+        document.getElementById('reciboContent').innerHTML = `
+          ${itemsText}
+          <div style="display:flex;justify-content:space-between;padding:8px 0 2px;font-weight:700;font-size:15px;color:var(--text-1)">
+            <span>Total</span><span style="font-family:'IBM Plex Mono',monospace">${fmt(venta.total)}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;color:var(--text-2)">
+            <span>Pago</span><span style="font-family:'IBM Plex Mono',monospace">${fmt(venta.pago)}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;color:var(--green);font-weight:600">
+            <span>Cambio</span><span style="font-family:'IBM Plex Mono',monospace">${fmt(venta.cambio)}</span>
+          </div>
+          <p style="margin-top:12px;font-size:12px;color:var(--text-3)">Venta #${String(venta.id).padStart(4,'0')} · ${venta.cajero}</p>`;
+        document.getElementById('reciboModal').classList.add('open');
+        cart = {};
+        document.getElementById('pagoInput').value = '';
+        renderCart();
+        await loadProductos(); // Actualizar stock
+      } catch(e) {
+        showToast(e.message, 'error');
+        btn.disabled = false;
+        btn.textContent = 'Registrar venta';
+      }
+    }
+
+    function closeRecibo() {
+      document.getElementById('reciboModal').classList.remove('open');
+      document.getElementById('btnCobrar').disabled = false;
+      document.getElementById('btnCobrar').textContent = 'Registrar venta';
+    }
+  </script>
+</body>
+</html>
